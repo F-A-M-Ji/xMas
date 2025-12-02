@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto 8-Bit Christmas World</title>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --console-color: #2e2e42;
+            --accent-color: #e94560;
+        }
+
+        body {
+            background-color: #000;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh; /* ใช้ min-height เพื่อรองรับจอแนวตั้ง */
+            font-family: 'VT323', monospace;
+            color: white;
+            overflow: hidden;
+        }
+
+        /* ปรับกรอบทีวีให้ยืดหยุ่น */
+        .crt-monitor {
+            background: var(--console-color);
+            padding: 2vmin; /* ใช้หน่วย vmin เพื่อปรับตามด้านที่สั้นกว่าของจอ */
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(255, 255, 255, 0.1);
+            position: relative;
+            width: 90vw;
+            max-width: 600px; /* จำกัดความกว้างสูงสุดไม่ให้ใหญ่เกินไปบนจอคอม */
+            box-sizing: border-box;
+        }
+
+        /* ตัว Canvas หลัก: ปรับให้ Responsive 100% */
+        canvas {
+            background-color: #0f380f;
+            border: 4px solid #000;
+            border-radius: 4px;
+            
+            image-rendering: pixelated; 
+            image-rendering: crisp-edges;
+            
+            width: 100%;      /* เต็มความกว้าง Container */
+            height: auto;     /* ความสูงปรับอัตโนมัติ */
+            aspect-ratio: 1 / 1; /* บังคับสัดส่วนสี่เหลี่ยมจัตุรัส */
+            
+            display: block;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* Scanlines ทับหน้าจอ */
+        .scanlines {
+            position: absolute;
+            top: 2vmin;
+            left: 2vmin;
+            right: 2vmin;
+            bottom: 2vmin; /* ปรับให้พอดีกับ padding ของ .crt-monitor */
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.2) 50%,
+                rgba(0,0,0,0.2)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+            border-radius: 4px;
+            /* ปรับ height ให้ตรงกับ canvas ด้วย aspect-ratio ถ้าทำได้ แต่ในที่นี้ใช้ position absolute ทับเอาง่ายกว่า */
+            height: auto;
+            aspect-ratio: 1/1;
+        }
+
+        h1 {
+            text-align: center;
+            margin: 0 0 10px 0;
+            text-shadow: 2px 2px #e94560;
+            letter-spacing: 2px;
+            font-size: 1.5rem;
+        }
+        
+        /* ข้อความสถานะด้านล่าง (แทนปุ่ม) */
+        .status-bar {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 1rem;
+            color: #888;
+            opacity: 0.7;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="crt-monitor">
+        
+        <canvas id="gameCanvas" width="64" height="64"></canvas>
+        <div class="scanlines"></div>
+        
+        <div class="status-bar">
+            BY: FAM
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        ctx.imageSmoothingEnabled = false;
+
+        // --- Game State ---
+        let time = 0;
+        let snowParticles = [];
+        let snowIntensity = 1; 
+        let lightMode = 1; 
+        let skyMode = 0; 
+        let santaPos = -20; 
+        let isSantaFlying = false;
+
+        // --- Palette Colors (PICO-8 Palette) ---
+        const colors = {
+            black: "#000000",
+            dark_blue: "#1D2B53",
+            dark_purple: "#7E2553",
+            dark_green: "#008751",
+            brown: "#AB5236",
+            dark_gray: "#5F574F",
+            light_gray: "#C2C3C7",
+            white: "#FFF1E8",
+            red: "#FF004D",
+            orange: "#FFA300",
+            yellow: "#FFEC27",
+            green: "#00E436",
+            blue: "#29ADFF",
+            indigo: "#83769C",
+            pink: "#FF77A8",
+            peach: "#FFCCAA"
+        };
+
+        const skyColors = [colors.dark_blue, colors.orange, colors.black];
+
+        // --- Initialization ---
+        function init() {
+            for(let i=0; i<50; i++) {
+                snowParticles.push({
+                    x: Math.random() * 64,
+                    y: Math.random() * 64,
+                    speed: Math.random() * 0.5 + 0.1
+                });
+            }
+            requestAnimationFrame(loop);
+        }
+
+        // --- Drawing Helpers ---
+        function drawPixel(x, y, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
+        }
+
+        function drawRect(x, y, w, h, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
+        }
+
+        // --- Auto Director Logic (AI ผู้กำกับ) ---
+        function autoDirector() {
+            // เปลี่ยนโหมดไฟ ทุกๆ ~2 วินาที (เร็วขึ้น)
+            if (time % 120 === 0) {
+                lightMode = (lightMode + 1) % 3;
+            }
+
+            // เปลี่ยนท้องฟ้า ทุกๆ ~5 วินาที (เร็วขึ้น)
+            if (time % 300 === 0) {
+                skyMode = (skyMode + 1) % 3;
+            }
+
+            // เปลี่ยนระดับหิมะ ทุกๆ ~4 วินาที
+            // แก้ไข: ตัดโหมด 0 (หยุดตก) ออกไป สลับแค่ 1 (ปกติ) กับ 2 (พายุ)
+            if (time % 240 === 0) {
+                snowIntensity = (snowIntensity === 1) ? 2 : 1;
+            }
+
+            // เรียก Santa: เพิ่มโอกาสเป็น 4% ต่อเฟรม (จากเดิม 1%)
+            // และเช็คว่าถ้ายังไม่บิน ให้เรียกออกมาเลย
+            if (!isSantaFlying && Math.random() < 0.04) {
+                callSanta();
+            }
+        }
+
+        // --- Update & Draw Loop ---
+        function loop() {
+            time++;
+            
+            // เรียกใช้งานผู้กำกับอัตโนมัติ
+            autoDirector();
+            
+            // 1. Clear Screen / Draw Sky
+            ctx.fillStyle = skyColors[skyMode];
+            ctx.fillRect(0, 0, 64, 64);
+
+            // 2. Draw Stars only (No Moon/Sun)
+            if (skyMode !== 1) { // Not Sunset
+                // Twinkling Stars (เพิ่มดาวกระพริบ เพื่อลด Dead air)
+                if (time % 40 < 20) drawPixel(10, 10, colors.white);
+                if ((time + 20) % 50 < 25) drawPixel(25, 5, colors.light_gray);
+                if ((time + 10) % 60 < 30) drawPixel(55, 25, colors.white);
+                // เพิ่มดาวอีกกลุ่ม
+                if ((time + 5) % 30 < 15) drawPixel(40, 15, colors.white);
+                if ((time + 15) % 45 < 20) drawPixel(5, 20, colors.light_gray);
+            }
+
+            // 3. Draw Ground
+            drawRect(0, 50, 64, 14, colors.white); 
+            drawRect(0, 52, 64, 1, colors.light_gray);
+
+            // 4. Draw Tree
+            drawTree(32, 50);
+
+            // 5. Draw Santa
+            if (isSantaFlying) {
+                updateSanta();
+                // ให้ซานต้าบินขึ้นลงเล็กน้อย (Sine wave)
+                drawSanta(santaPos, 15 + Math.sin(time * 0.2) * 3); // ขยับขึ้นลงเร็วขึ้น
+            }
+
+            // 6. Draw Snow
+            updateAndDrawSnow();
+
+            // 7. Draw Marquee Text
+            drawMarquee();
+
+            requestAnimationFrame(loop);
+        }
+
+        // --- Object: Tree ---
+        function drawTree(x, bottomY) {
+            drawRect(x-2, bottomY-4, 4, 4, colors.brown); // Trunk
+            const layers = [
+                {w: 24, h: 6, y: bottomY-10},
+                {w: 18, h: 6, y: bottomY-15},
+                {w: 12, h: 5, y: bottomY-19},
+                {w: 6, h: 4, y: bottomY-22}
+            ];
+            layers.forEach(l => {
+                let startX = x - (l.w / 2);
+                for(let i=0; i<l.h; i++) {
+                   drawRect(startX + i, l.y + i, l.w - (i*2), 1, colors.dark_green);
+                }
+            });
+
+            // Star Blink
+            const starColor = (time % 30 < 15) ? colors.yellow : colors.white;
+            drawPixel(x-1, bottomY-24, starColor);
+            drawPixel(x, bottomY-25, starColor);
+            drawPixel(x, bottomY-23, starColor);
+            drawPixel(x+1, bottomY-24, starColor);
+
+            // Lights Decoration
+            const lightPositions = [
+                {x: -6, y: -8}, {x: 4, y: -6}, 
+                {x: -3, y: -13}, {x: 2, y: -12},
+                {x: 0, y: -17}
+            ];
+
+            lightPositions.forEach((pos, index) => {
+                let color = colors.red;
+                if (lightMode === 0) { // Static
+                    color = (index % 2 === 0) ? colors.red : colors.blue;
+                } else if (lightMode === 1) { // Blink
+                    color = (Math.floor(time / 10) % 2 === 0) ? colors.red : colors.yellow;
+                } else if (lightMode === 2) { // Disco
+                    const disco = [colors.red, colors.blue, colors.yellow, colors.pink, colors.green];
+                    color = disco[(Math.floor(time / 5) + index) % disco.length];
+                }
+                drawPixel(x + pos.x, bottomY + pos.y, color);
+            });
+        }
+
+        // --- Object: Santa ---
+        function callSanta() {
+            santaPos = -15;
+            isSantaFlying = true;
+        }
+
+        function updateSanta() {
+            // เพิ่มความเร็วในการบิน จาก 0.5 เป็น 0.8
+            santaPos += 0.8;
+            if (santaPos > 70) {
+                isSantaFlying = false;
+            }
+        }
+
+        function drawSanta(x, y) {
+            drawPixel(x+10, y+2, colors.brown); // Deer
+            drawPixel(x+11, y+1, colors.brown);
+            drawPixel(x+12, y+2, colors.red); // Nose
+            drawRect(x, y+3, 6, 2, colors.brown); // Sleigh
+            drawPixel(x, y+2, colors.red); // Body
+            drawPixel(x+1, y+1, colors.white); // Head
+            drawPixel(x+1, y, colors.red); // Hat
+        }
+
+        // --- Object: Snow ---
+        function updateAndDrawSnow() {
+            if (snowIntensity === 0) return;
+
+            snowParticles.forEach(p => {
+                drawPixel(p.x, p.y, colors.white);
+                let speedMultiplier = (snowIntensity === 2) ? 2.5 : 1;
+                p.y += p.speed * speedMultiplier;
+                
+                if (snowIntensity === 2) p.x -= 0.5; // Wind
+
+                if (p.y > 64) {
+                    p.y = -2;
+                    p.x = Math.random() * 64;
+                }
+                if (p.x < 0) p.x = 64;
+            });
+        }
+
+        // --- Marquee Text ---
+        // ข้อมูลฟอนต์พิกเซล (1 = วาดจุด, 0 = ไม่วาด)
+        const fontData = {
+            'M': [[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1]],
+            'E': [[1,1,1],[1,0,0],[1,1,1],[1,0,0],[1,1,1]],
+            'R': [[1,1,0],[1,0,1],[1,1,0],[1,0,1],[1,0,1]],
+            'Y': [[1,0,1],[1,0,1],[0,1,0],[0,1,0],[0,1,0]],
+            ' ': [[0,0],[0,0],[0,0],[0,0],[0,0]],
+            'C': [[0,1,1],[1,0,0],[1,0,0],[1,0,0],[0,1,1]],
+            'H': [[1,0,1],[1,0,1],[1,1,1],[1,0,1],[1,0,1]],
+            'I': [[1],[1],[1],[1],[1]],
+            'S': [[0,1,1],[1,0,0],[0,1,0],[0,0,1],[1,1,0]],
+            'T': [[1,1,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0]],
+            'A': [[0,1,0],[1,0,1],[1,1,1],[1,0,1],[1,0,1]]
+        };
+
+        let marqueeX = 64;
+        
+        function drawMarquee() {
+            marqueeX -= 0.5;
+            
+            // ข้อความที่จะแสดง
+            const message = "MERRY CHRISTMAS";
+            const textY = 4;
+            
+            let currentX = marqueeX;
+            let totalWidth = 0;
+
+            // วนลูปวาดทีละตัวอักษร
+            for (let i = 0; i < message.length; i++) {
+                const char = message[i];
+                const matrix = fontData[char];
+                
+                if (!matrix) continue;
+
+                // สลับสีตัวอักษร แดง/เขียว/ขาว
+                let charColor = colors.white;
+                if (i % 2 === 0) charColor = colors.red;
+                else charColor = colors.green;
+
+                // วาดจุดตามเมทริกซ์ของตัวอักษร
+                for (let r = 0; r < matrix.length; r++) {     // แถว (Row)
+                    for (let c = 0; c < matrix[r].length; c++) { // คอลัมน์ (Col)
+                        if (matrix[r][c] === 1) {
+                            // เช็คว่าจุดนี้อยู่ในหน้าจอไหม (เพื่อประหยัดการวาด)
+                            if (currentX + c >= 0 && currentX + c < 64) {
+                                drawPixel(currentX + c, textY + r, charColor);
+                            }
+                        }
+                    }
+                }
+                
+                // ขยับ X ไปทางขวาเพื่อวาดตัวถัดไป (ความกว้างตัวอักษร + ช่องว่าง 1 px)
+                const charWidth = matrix[0].length;
+                currentX += charWidth + 1;
+                totalWidth += charWidth + 1;
+            }
+
+            // ถ้าวิ่งจนสุดขอบซ้าย ให้วนกลับมาขวาใหม่
+            if (marqueeX < -totalWidth) {
+                marqueeX = 64;
+            }
+        }
+
+        // Start
+        init();
+
+    </script>
+</body>
+</html>

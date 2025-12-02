@@ -151,7 +151,8 @@
                 snowParticles.push({
                     x: Math.random() * 64,
                     y: Math.random() * 64,
-                    speed: Math.random() * 0.5 + 0.1
+                    // แก้ไข: กำหนดความเร็วเท่ากันทุกเม็ด (0.25) ไม่มีการสุ่ม
+                    speed: 0.25
                 });
             }
             requestAnimationFrame(loop);
@@ -289,8 +290,8 @@
         }
 
         function updateSanta() {
-            // เพิ่มความเร็วในการบิน จาก 0.5 เป็น 0.8
-            santaPos += 0.8;
+            // แก้ไข: ปรับความเร็วคงที่ 0.5 (ช้าลงเล็กน้อยและสม่ำเสมอ)
+            santaPos += 0.5;
             if (santaPos > 70) {
                 isSantaFlying = false;
             }
@@ -312,9 +313,12 @@
 
             snowParticles.forEach(p => {
                 drawPixel(p.x, p.y, colors.white);
-                let speedMultiplier = (snowIntensity === 2) ? 2.5 : 1;
-                p.y += p.speed * speedMultiplier;
                 
+                // แก้ไข: ใช้ความเร็วคงที่ตามที่กำหนดไว้ใน p.speed (0.25) ไม่มีการคูณเพิ่ม
+                // แม้จะเป็นพายุ ก็ตกด้วยความเร็วเท่าเดิม
+                p.y += p.speed;
+                
+                // ถ้าเป็นพายุ (Intensity 2) ให้เพิ่มแค่ลม (แกน X) แต่ความเร็วตก (แกน Y) เท่าเดิม
                 if (snowIntensity === 2) p.x -= 0.5; // Wind
 
                 if (p.y > 64) {

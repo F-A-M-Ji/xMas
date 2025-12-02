@@ -3,416 +3,421 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retro Christmas</title>
-    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <title>Chunky Christmas Pixel Loop v2</title>
     <style>
-        :root {
-            --bg-color: #1a1a2e;
-            --console-color: #2e2e42;
-            --accent-color: #e94560;
-        }
-
         body {
-            background-color: #000;
             margin: 0;
             padding: 0;
-            height: 100vh;
-            width: 100vw;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background-color: #0f0f23;
             overflow: hidden;
-            font-family: 'VT323', monospace;
-        }
-
-        /* กรอบจอ Retro แบบเต็มหน้าจอ */
-        .crt-monitor {
-            background: var(--console-color);
-            padding: 1.5vmin; /* ขอบจอปรับตามขนาดจอ */
-            border-radius: 20px;
-            box-shadow: 
-                0 0 0 10px #1a1a1a, /* ขอบนอก */
-                0 0 50px rgba(255, 255, 255, 0.1);
-            position: relative;
-            
-            /* ปรับให้เกือบเต็มจอ แต่เหลือขอบไว้นิดหน่อยให้ดูสวย */
-            width: 95vw;
-            height: 92vh;
-            
-            box-sizing: border-box;
+            width: 100vw;
+            height: 100vh;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
         }
 
-        /* พื้นที่แสดงผลด้านใน */
-        .screen-container {
+        #player-container {
             position: relative;
             width: 100%;
             height: 100%;
-            background-color: #000;
-            border-radius: 4px;
-            overflow: hidden;
-            border: 4px solid #111;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+            background: #000;
         }
 
         canvas {
-            background-color: #0f380f;
             display: block;
             width: 100%;
             height: 100%;
-            
-            /* Pixel Art คมชัด */
-            image-rendering: pixelated; 
-            image-rendering: crisp-edges;
+            image-rendering: pixelated; /* สำคัญมากสำหรับ Pixel Art */
         }
 
-        /* Scanlines */
-        .scanlines {
+        .overlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(
-                to bottom,
-                rgba(255,255,255,0),
-                rgba(255,255,255,0) 50%,
-                rgba(0,0,0,0.15) 50%,
-                rgba(0,0,0,0.15)
-            );
-            background-size: 100% 4px;
-            pointer-events: none;
+            top: 20px;
+            left: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 14px;
+            text-shadow: 2px 2px 0 #000;
             z-index: 10;
         }
-        
-        /* เงาสะท้อนหน้าจอโค้ง */
-        .screen-glare {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 90%);
-            pointer-events: none;
-            z-index: 11;
-        }
-
-        h1 {
-            position: absolute;
-            top: 15px;
-            left: 20px;
-            margin: 0;
-            color: rgba(255, 255, 255, 0.5);
-            text-shadow: 2px 2px #000;
-            z-index: 12;
-            font-size: 1.5rem;
-            pointer-events: none;
-            letter-spacing: 2px;
-        }
-        
-        .status-bar {
-            position: absolute;
-            bottom: 15px;
-            right: 20px;
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 1.2rem;
-            z-index: 12;
-            pointer-events: none;
-        }
-
     </style>
 </head>
 <body>
 
-    <div class="crt-monitor">
-        <div class="screen-container">
-            <canvas id="gameCanvas"></canvas>
-            <div class="scanlines"></div>
-            <div class="screen-glare"></div>
-        </div>
-    </div>
+<div id="player-container">
+    <canvas id="pixelCanvas"></canvas>
+    <div class="overlay">LIVE 🔴 NORTH POLE BROADCAST</div>
+</div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+<script>
+    const canvas = document.getElementById('pixelCanvas');
+    const ctx = canvas.getContext('2d');
 
+    // --- CONFIGURATION ---
+    const TARGET_GAME_HEIGHT = 180; // เพิ่มความละเอียดขึ้นเล็กน้อยเพื่อให้วาดรายละเอียดได้มากขึ้น
+
+    let gameWidth = 0;
+    let gameHeight = 0;
+    let frameCount = 0;
+    const scrollSpeed = 1.0; 
+
+    // Palette (Refined Colors)
+    const PALETTE = {
+        skyTop: '#0C0C1D',
+        skyBottom: '#202040',
+        moon: '#FFD700',
+        snow: '#E3F2FD',
+        ground: '#DDDDDD',
+        road: '#263238',
+        treeDark: '#1B5E20',
+        treeLight: '#2E7D32',
+        gold: '#FFC107',
+        santaRed: '#D32F2F',
+        sleigh: '#5D4037',
+        skin: '#FFCCBC'
+    };
+
+    // Game Objects
+    let stars = [];
+    let mountains = [];
+    let buildings = [];
+    let groundObjects = [];
+    let snowParticles = [];
+
+    // --- RESIZE LOGIC ---
+    function resize() {
+        const aspect = window.innerWidth / window.innerHeight;
+        gameHeight = TARGET_GAME_HEIGHT;
+        gameWidth = Math.ceil(gameHeight * aspect);
+        canvas.width = gameWidth;
+        canvas.height = gameHeight;
         ctx.imageSmoothingEnabled = false;
+        initScene();
+    }
+    window.addEventListener('resize', resize);
 
-        // --- Configuration ---
-        const TARGET_HEIGHT = 64; 
-        let virtualWidth = 64;    
-
-        // --- Game State ---
-        let time = 0;
-        let snowParticles = [];
-        // snowIntensity = 1 ตลอดเวลา (ตกปกติ ไม่พายุ)
-        let snowIntensity = 1; 
-        let lightMode = 1; 
-        let skyMode = 0; 
-        let santaPos = -20; 
-        let isSantaFlying = false;
-
-        // --- Palette Colors ---
-        const colors = {
-            black: "#000000",
-            dark_blue: "#1D2B53",
-            dark_purple: "#7E2553",
-            dark_green: "#008751",
-            brown: "#AB5236",
-            dark_gray: "#5F574F",
-            light_gray: "#C2C3C7",
-            white: "#FFF1E8",
-            red: "#FF004D",
-            orange: "#FFA300",
-            yellow: "#FFEC27",
-            green: "#00E436",
-            blue: "#29ADFF",
-            indigo: "#83769C",
-            pink: "#FF77A8",
-            peach: "#FFCCAA"
-        };
-
-        const skyColors = [colors.dark_blue, colors.orange, colors.black];
-
-        // --- Initialization & Resize Logic ---
-        function resize() {
-            // คำนวณ Aspect Ratio ของ Container (ไม่ใช่ window แล้ว เพราะอยู่ในขอบ)
-            const container = document.querySelector('.screen-container');
-            const aspect = container.clientWidth / container.clientHeight;
-            
-            canvas.height = TARGET_HEIGHT;
-            canvas.width = Math.ceil(TARGET_HEIGHT * aspect);
-            virtualWidth = canvas.width;
-            
-            initSnow();
-            marqueeX = virtualWidth;
-            ctx.imageSmoothingEnabled = false;
+    // --- INITIALIZATION ---
+    function initScene() {
+        // Stars
+        stars = [];
+        for(let i=0; i<60; i++) {
+            stars.push({
+                x: Math.random() * gameWidth,
+                y: Math.random() * (gameHeight * 0.5),
+                size: Math.random() < 0.1 ? 2 : 1, // มีดาวใหญ่บ้าง
+                blinkSpeed: Math.random() * 0.1
+            });
+        }
+        
+        // Buildings (Background)
+        buildings = [];
+        let bx = 0;
+        while(bx < gameWidth + 50) {
+            const w = 15 + Math.random() * 20;
+            buildings.push({
+                x: bx,
+                w: w,
+                h: 20 + Math.random() * 30,
+                windows: Math.random() > 0.3
+            });
+            bx += w;
         }
 
-        window.addEventListener('resize', resize);
-        // เพิ่ม setTimeout เพื่อรอให้ layout วาดเสร็จก่อนคำนวณขนาด
-        window.addEventListener('load', () => setTimeout(resize, 100));
+        groundObjects = [];
+    }
 
-        function initSnow() {
-            snowParticles = [];
-            const particleCount = Math.floor(virtualWidth * 1.5); 
+    // --- DRAWING HELPERS ---
+    function rect(x, y, w, h, color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
+    }
+
+    // --- DETAILED OBJECTS ---
+
+    function drawDetailedSanta(x, y) {
+        // Float effect
+        const bob = Math.sin(frameCount * 0.05) * 2;
+        y += bob;
+
+        // 1. กวางเรนเดียร์ (4 ตัว - 2 คู่)
+        // คู่หน้า
+        drawReindeer(x + 65, y + 2, 0); 
+        drawReindeer(x + 80, y + 5, 5);
+        // คู่หลัง (สีเข้มกว่านิดหน่อยเพื่อมิติ)
+        drawReindeer(x + 45, y + 2, 10);
+        drawReindeer(x + 60, y + 5, 15);
+
+        // 2. เชือกบังเหียน
+        ctx.strokeStyle = '#3E2723';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + 20, y + 5); // มือซานต้า
+        ctx.lineTo(x + 80, y + 5); // ถึงกวางตัวหน้า
+        ctx.stroke();
+
+        // 3. รถเลื่อน (Sleigh) - รายละเอียดสูงขึ้น
+        // ขาเลื่อน (Runner)
+        ctx.strokeStyle = PALETTE.gold;
+        ctx.beginPath();
+        ctx.moveTo(x - 5, y + 14);
+        ctx.bezierCurveTo(x + 5, y + 18, x + 25, y + 18, x + 35, y + 10);
+        ctx.stroke();
+        
+        // ตัวรถ
+        rect(x, y + 8, 30, 6, PALETTE.sleigh); // ฐาน
+        rect(x - 2, y + 6, 5, 8, PALETTE.sleigh); // พนักพิง
+        rect(x + 25, y + 6, 5, 4, PALETTE.sleigh); // หน้ารถโค้ง
+        
+        // 4. ถุงของขวัญ (Bag)
+        rect(x + 2, y + 2, 8, 8, '#795548'); // ถุง
+        rect(x + 3, y + 3, 2, 2, '#EF5350'); // กล่องของขวัญโผล่มา
+        rect(x + 6, y + 2, 3, 3, '#42A5F5'); // กล่องอีกใบ
+
+        // 5. ซานต้า (Santa)
+        rect(x + 10, y + 2, 10, 8, PALETTE.santaRed); // ตัว
+        rect(x + 13, y - 2, 5, 5, PALETTE.skin); // หน้า
+        rect(x + 12, y + 1, 7, 3, '#FFF'); // เครา
+        rect(x + 12, y - 4, 7, 3, PALETTE.santaRed); // หมวก
+        rect(x + 18, y - 3, 2, 2, '#FFF'); // ปอมปอม
+        rect(x + 18, y + 4, 3, 2, '#333'); // ถุงมือจับเชือก
+    }
+
+    function drawReindeer(x, y, frameOffset) {
+        // ขาขยับ
+        const legSwing = Math.sin((frameCount + frameOffset) * 0.2) * 3;
+        
+        // ขาหลัง
+        rect(x + 2, y + 6 + legSwing, 2, 5, '#5D4037');
+        rect(x + 10, y + 6 - legSwing, 2, 5, '#5D4037');
+        
+        // ตัว
+        rect(x, y, 12, 7, '#795548');
+        rect(x - 1, y - 1, 2, 2, '#FFF'); // หาง
+        
+        // คอและหัว
+        rect(x + 10, y - 3, 4, 6, '#795548'); // คอ
+        rect(x + 11, y - 6, 5, 4, '#795548'); // หัว
+        rect(x + 15, y - 4, 1, 1, '#3E2723'); // จมูก
+        rect(x + 12, y - 9, 4, 3, '#D7CCC8'); // เขา
+        
+        // ปลอกคอกระดิ่ง
+        rect(x + 11, y, 2, 2, PALETTE.gold);
+    }
+
+    function drawFancyTree(obj) {
+        const x = obj.x;
+        const y = obj.y; // จุดฐาน
+        
+        // กระถาง
+        rect(x + 6, y - 4, 6, 4, '#3E2723');
+
+        // ใบไม้ (Layered)
+        const layers = 5;
+        const baseW = 22;
+        const layerH = 6;
+        
+        for (let i = 0; i < layers; i++) {
+            const w = baseW - (i * 4);
+            const lx = x + (baseW - w) / 2; // Center x
+            const ly = y - 4 - ((i + 1) * (layerH - 1)); // Overlap slightly
             
-            for(let i=0; i<particleCount; i++) {
-                snowParticles.push({
-                    x: Math.random() * virtualWidth,
-                    y: Math.random() * TARGET_HEIGHT,
-                    speed: 0.1 // ความเร็วคงที่
+            // เงาใบไม้
+            rect(lx + 1, ly + 1, w, layerH, PALETTE.treeDark);
+            // ส่วนใบไม้หลัก
+            rect(lx, ly, w - 1, layerH - 1, PALETTE.treeLight);
+            
+            // Texture (Leaf noise)
+            if (i % 2 === 0) rect(lx + 2, ly + 2, 2, 2, PALETTE.treeDark);
+        }
+
+        // ดาวบนยอด (ปรับตำแหน่งใหม่ให้กลางเป๊ะ)
+        const topY = y - 4 - (layers * (layerH - 1));
+        // baseW คือ 22, กึ่งกลางคือ 11
+        // ส่วนแนวตั้งกว้าง 2 -> x = 11 - 1 = 10
+        rect(x + 10, topY - 3, 2, 4, PALETTE.gold);
+        // ส่วนแนวนอนกว้าง 4 -> x = 11 - 2 = 9
+        rect(x + 9, topY - 2, 4, 2, PALETTE.gold);
+
+        // ไฟประดับ (Ornaments)
+        // คำนวณตำแหน่งไฟแบบสุ่มแต่คงที่ (Deterministic random based on x)
+        // หรือใช้ frameCount ให้กระพริบ
+        const blink = Math.floor(frameCount / 10) % 2 === 0;
+        if (blink) {
+            rect(x + 5, y - 10, 2, 2, '#F44336'); // แดง
+            rect(x + 12, y - 20, 2, 2, '#2196F3'); // ฟ้า
+            rect(x + 8, y - 15, 2, 2, '#FFEB3B'); // เหลือง
+        } else {
+            rect(x + 10, y - 8, 2, 2, '#FFEB3B');
+            rect(x + 6, y - 22, 2, 2, '#F44336');
+        }
+    }
+
+    function drawDetailedHuman(obj) {
+        const x = obj.x;
+        const y = obj.y;
+        
+        // ขาเดิน
+        const stride = Math.sin(frameCount * 0.15) * 3;
+        rect(x, y - 8, 2, 8 + stride, '#263238'); // ขา 1
+        rect(x + 4, y - 8, 2, 8 - stride, '#263238'); // ขา 2
+        
+        // ตัวเสื้อ
+        rect(x - 1, y - 18, 8, 10, obj.color);
+        // ผ้าพันคอ
+        rect(x - 1, y - 18, 8, 2, '#FFF');
+        rect(x + 4, y - 18, 2, 5 + Math.sin(frameCount * 0.2), '#FFF'); // ชายผ้าพันคอปลิว
+
+        // หัว
+        rect(x, y - 23, 6, 5, PALETTE.skin);
+        // หมวกไหมพรม
+        rect(x - 1, y - 25, 8, 3, obj.color);
+        rect(x + 2, y - 26, 2, 1, '#FFF');
+    }
+
+    // --- LOGIC ---
+    function spawnObjects() {
+        if (Math.random() < 0.015) { // เกิดไม่บ่อยมาก เพื่อไม่ให้รก
+            const choice = Math.random();
+            let type = 'TREE';
+            if (choice > 0.6) type = 'HUMAN';
+            else if (choice > 0.4) type = 'LAMP';
+
+            // ตรวจสอบระยะห่าง
+            const lastObj = groundObjects[groundObjects.length - 1];
+            if (!lastObj || (gameWidth + 20) - lastObj.x > 40) {
+                groundObjects.push({
+                    type: type,
+                    x: gameWidth + 20,
+                    y: gameHeight - 20, // จุดยืน
+                    color: PALETTE.santaRed // default for human
                 });
             }
         }
+    }
 
-        function init() {
-            resize(); 
-            requestAnimationFrame(loop);
-        }
+    function update() {
+        frameCount++;
 
-        // --- Drawing Helpers ---
-        function drawPixel(x, y, color) {
-            ctx.fillStyle = color;
-            ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
-        }
-
-        function drawRect(x, y, w, h, color) {
-            ctx.fillStyle = color;
-            ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
-        }
-
-        // --- Auto Director ---
-        function autoDirector() {
-            if (time % 120 === 0) lightMode = (lightMode + 1) % 3;
-            if (time % 300 === 0) skyMode = (skyMode + 1) % 3;
-            // ลบบรรทัดเปลี่ยน snowIntensity ออก เพื่อให้หิมะตกปกติเสมอ
-            
-            if (!isSantaFlying && Math.random() < 0.04) {
-                callSanta();
-            }
-        }
-
-        // --- Update & Draw Loop ---
-        function loop() {
-            time++;
-            autoDirector();
-            
-            // 1. Clear Screen / Sky
-            ctx.fillStyle = skyColors[skyMode];
-            ctx.fillRect(0, 0, virtualWidth, TARGET_HEIGHT);
-
-            // 2. Stars
-            if (skyMode !== 1) {
-                for(let i=0; i<20; i++) {
-                     let starX = (i * 17) % virtualWidth; 
-                     let starY = (i * 13) % (TARGET_HEIGHT/2);
-                     if ((time + i*10) % 40 < 20) {
-                         drawPixel(starX, starY, colors.white);
-                     }
-                }
-            }
-
-            // 3. Ground
-            drawRect(0, 50, virtualWidth, 14, colors.white); 
-            drawRect(0, 52, virtualWidth, 1, colors.light_gray);
-
-            // 4. Tree
-            drawTree(virtualWidth / 2, 50);
-
-            // 5. Santa
-            if (isSantaFlying) {
-                updateSanta();
-                drawSanta(santaPos, 15 + Math.sin(time * 0.2) * 3);
-            }
-
-            // 6. Snow
-            updateAndDrawSnow();
-
-            // 7. Marquee Text
-            drawMarquee();
-
-            requestAnimationFrame(loop);
-        }
-
-        // --- Object: Tree ---
-        function drawTree(x, bottomY) {
-            x = Math.floor(x);
-            drawRect(x-2, bottomY-4, 4, 4, colors.brown); 
-            const layers = [
-                {w: 24, h: 6, y: bottomY-10},
-                {w: 18, h: 6, y: bottomY-15},
-                {w: 12, h: 5, y: bottomY-19},
-                {w: 6, h: 4, y: bottomY-22}
-            ];
-            layers.forEach(l => {
-                let startX = x - (l.w / 2);
-                for(let i=0; i<l.h; i++) {
-                   drawRect(startX + i, l.y + i, l.w - (i*2), 1, colors.dark_green);
-                }
-            });
-
-            // Star
-            const starColor = (time % 30 < 15) ? colors.yellow : colors.white;
-            drawPixel(x-1, bottomY-24, starColor);
-            drawPixel(x, bottomY-25, starColor);
-            drawPixel(x, bottomY-23, starColor);
-            drawPixel(x+1, bottomY-24, starColor);
-
-            // Lights
-            const lightPositions = [
-                {x: -6, y: -8}, {x: 4, y: -6}, 
-                {x: -3, y: -13}, {x: 2, y: -12},
-                {x: 0, y: -17}
-            ];
-            lightPositions.forEach((pos, index) => {
-                let color = colors.red;
-                if (lightMode === 0) color = (index % 2 === 0) ? colors.red : colors.blue;
-                else if (lightMode === 1) color = (Math.floor(time / 10) % 2 === 0) ? colors.red : colors.yellow;
-                else if (lightMode === 2) {
-                    const disco = [colors.red, colors.blue, colors.yellow, colors.pink, colors.green];
-                    color = disco[(Math.floor(time / 5) + index) % disco.length];
-                }
-                drawPixel(x + pos.x, bottomY + pos.y, color);
+        // Snowflakes
+        if (snowParticles.length < 100) {
+            snowParticles.push({
+                x: Math.random() * gameWidth,
+                y: -5,
+                speed: 0.5 + Math.random(),
+                wobble: Math.random() * Math.PI
             });
         }
-
-        // --- Object: Santa ---
-        function callSanta() {
-            santaPos = -30;
-            isSantaFlying = true;
-        }
-
-        function updateSanta() {
-            santaPos += 0.5;
-            if (santaPos > virtualWidth + 20) {
-                isSantaFlying = false;
+        snowParticles.forEach(p => {
+            p.y += p.speed;
+            p.x -= scrollSpeed * 0.2 + Math.sin(p.wobble + frameCount * 0.05) * 0.5;
+            if (p.y > gameHeight) {
+                p.y = -5;
+                p.x = Math.random() * gameWidth;
             }
+        });
+
+        // Parallax Buildings
+        buildings.forEach(b => {
+            b.x -= scrollSpeed * 0.25; // ช้ากว่าฉากหน้า
+            if (b.x + b.w < 0) b.x = gameWidth + Math.random() * 50;
+        });
+
+        spawnObjects();
+
+        // Move Ground Objects
+        for (let i = groundObjects.length - 1; i >= 0; i--) {
+            groundObjects[i].x -= scrollSpeed;
+            if (groundObjects[i].x < -30) groundObjects.splice(i, 1);
         }
+    }
 
-        function drawSanta(x, y) {
-            x = Math.floor(x);
-            y = Math.floor(y);
-            drawPixel(x+10, y+2, colors.brown); 
-            drawPixel(x+11, y+1, colors.brown);
-            drawPixel(x+12, y+2, colors.red); 
-            drawRect(x, y+3, 6, 2, colors.brown); 
-            drawPixel(x, y+2, colors.red); 
-            drawPixel(x+1, y+1, colors.white); 
-            drawPixel(x+1, y, colors.red); 
-        }
+    function draw() {
+        // 1. Sky Gradient
+        const grad = ctx.createLinearGradient(0, 0, 0, gameHeight);
+        grad.addColorStop(0, PALETTE.skyTop);
+        grad.addColorStop(1, PALETTE.skyBottom);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, gameWidth, gameHeight);
 
-        // --- Object: Snow ---
-        function updateAndDrawSnow() {
-            snowParticles.forEach(p => {
-                drawPixel(p.x, p.y, colors.white);
-                p.y += p.speed;
-                // ตัดเงื่อนไขพายุ (wind) ออกไป ให้ตกตรงๆ เท่านั้น
-                
-                if (p.y > TARGET_HEIGHT) {
-                    p.y = -2;
-                    p.x = Math.random() * virtualWidth;
-                }
-            });
-        }
+        // 2. Stars
+        ctx.fillStyle = '#FFF';
+        stars.forEach(s => {
+            if (Math.sin(frameCount * s.blinkSpeed) > 0) {
+                ctx.fillRect(s.x, s.y, s.size, s.size);
+            }
+        });
 
-        // --- Marquee Text ---
-        const fontData = {
-            'M': [[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1]],
-            'E': [[1,1,1],[1,0,0],[1,1,1],[1,0,0],[1,1,1]],
-            'R': [[1,1,0],[1,0,1],[1,1,0],[1,0,1],[1,0,1]],
-            'Y': [[1,0,1],[1,0,1],[0,1,0],[0,1,0],[0,1,0]],
-            ' ': [[0,0],[0,0],[0,0],[0,0],[0,0]],
-            'C': [[0,1,1],[1,0,0],[1,0,0],[1,0,0],[0,1,1]],
-            'H': [[1,0,1],[1,0,1],[1,1,1],[1,0,1],[1,0,1]],
-            'I': [[1],[1],[1],[1],[1]],
-            'S': [[0,1,1],[1,0,0],[0,1,0],[0,0,1],[1,1,0]],
-            'T': [[1,1,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0]],
-            'A': [[0,1,0],[1,0,1],[1,1,1],[1,0,1],[1,0,1]]
-        };
+        // 3. Moon (Glowy Pixel)
+        const mx = gameWidth - 50, my = 30;
+        ctx.fillStyle = 'rgba(255, 215, 0, 0.2)'; // Glow
+        ctx.fillRect(mx - 2, my - 2, 14, 14);
+        rect(mx, my, 10, 10, PALETTE.moon);
 
-        let marqueeX = 64;
+        // 4. City Background (Silhouette)
+        ctx.fillStyle = '#101025'; // สีตึกเข้มๆ
+        buildings.forEach(b => {
+            rect(b.x, gameHeight - 30 - b.h, b.w, b.h + 30, '#101025');
+            // หน้าต่างไฟ
+            if (b.windows) {
+                ctx.fillStyle = '#263238'; // ไฟมืดๆ
+                if (Math.random() > 0.95) ctx.fillStyle = '#FFC107'; // ไฟติดบ้างดับบ้าง
+                rect(b.x + 2, gameHeight - 30 - b.h + 4, 2, 2, ctx.fillStyle);
+                rect(b.x + 6, gameHeight - 30 - b.h + 10, 2, 2, ctx.fillStyle);
+            }
+        });
+
+        // 5. Road & Ground
+        const groundY = gameHeight - 20;
+        rect(0, groundY, gameWidth, 20, PALETTE.road); // ถนน
+        rect(0, groundY, gameWidth, 2, '#CFD8DC'); // ขอบฟุตบาท
         
-        function drawMarquee() {
-            marqueeX -= 0.5;
-            const message = "MERRY CHRISTMAS";
-            const textY = 4;
-            
-            let currentX = marqueeX;
-            let totalWidth = 0;
-
-            for (let i = 0; i < message.length; i++) {
-                const char = message[i];
-                const matrix = fontData[char];
-                if (!matrix) continue;
-
-                let charColor = (i % 2 === 0) ? colors.red : colors.green;
-
-                for (let r = 0; r < matrix.length; r++) {
-                    for (let c = 0; c < matrix[r].length; c++) {
-                        if (matrix[r][c] === 1) {
-                            if (currentX + c >= 0 && currentX + c < virtualWidth) {
-                                drawPixel(currentX + c, textY + r, charColor);
-                            }
-                        }
-                    }
-                }
-                
-                const charWidth = matrix[0].length;
-                currentX += charWidth + 1;
-                totalWidth += charWidth + 1;
-            }
-
-            if (marqueeX < -totalWidth) {
-                marqueeX = virtualWidth; 
-            }
+        // รั้วไกล (Fence)
+        const fenceSpacing = 10;
+        const fenceOffset = (frameCount * scrollSpeed) % fenceSpacing;
+        ctx.fillStyle = '#37474F';
+        for(let i = -1; i < gameWidth/fenceSpacing + 1; i++) {
+            rect((i * fenceSpacing) - fenceOffset, groundY - 6, 2, 6, '#37474F');
+            rect(0, groundY - 4, gameWidth, 1, '#37474F'); // ราวรั้ว
         }
 
-        init();
+        // 6. Ground Objects (Sorted by Y is not needed as they are on same line, just draw)
+        groundObjects.forEach(obj => {
+            if (obj.type === 'TREE') drawFancyTree(obj);
+            else if (obj.type === 'HUMAN') drawDetailedHuman(obj);
+            else if (obj.type === 'LAMP') {
+                 // เสาไฟ
+                 rect(obj.x, obj.y - 35, 2, 35, '#212121');
+                 rect(obj.x - 2, obj.y - 38, 6, 4, '#000');
+                 rect(obj.x - 1, obj.y - 37, 4, 2, '#FFEB3B'); // หลอดไฟ
+                 // แสงฟุ้ง
+                 ctx.fillStyle = 'rgba(255, 235, 59, 0.2)';
+                 ctx.fillRect(obj.x - 10, obj.y - 45, 22, 22);
+            }
+        });
 
-    </script>
+        // 7. Santa (Flying above)
+        // ตำแหน่ง X คงที่, Y ลอยอยู่เหนือตึก
+        drawDetailedSanta(40, 50);
+
+        // 8. Snow Foreground
+        ctx.fillStyle = '#FFF';
+        snowParticles.forEach(p => {
+            ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 1, 1);
+        });
+    }
+
+    // Start
+    resize();
+    function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+    loop();
+
+</script>
+
 </body>
 </html>

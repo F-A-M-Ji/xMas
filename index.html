@@ -2,422 +2,876 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chunky Christmas Pixel Loop v2</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Super Rich - Clean UI Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #0f0f23;
-            overflow: hidden;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        :root {
+            /* Adjust board size to be slightly smaller than full viewport for better padding */
+            --board-size: min(95vw, 95vh);
+            /* Base font size scaling */
+            --base-font-size: calc(var(--board-size) / 55);
         }
 
-        #player-container {
+        body { 
+            font-family: 'Kanit', sans-serif; 
+            background-color: #f0f2f5; 
+            color: #1f2937; 
+            overflow: hidden; 
+            user-select: none;
+            margin: 0; padding: 0;
+            height: 100vh; width: 100vw;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* --- BOARD LAYOUT --- */
+        .board {
+            display: grid; 
+            grid-template-columns: repeat(11, 1fr); 
+            grid-template-rows: repeat(11, 1fr);
+            width: var(--board-size); height: var(--board-size); 
+            background-color: #e2e8f0; 
+            border: 4px solid #1e293b; 
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3); 
             position: relative;
-            width: 100%;
-            height: 100%;
-            background: #000;
+            font-size: var(--base-font-size);
         }
 
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-            image-rendering: pixelated; /* สำคัญมากสำหรับ Pixel Art */
+        .cell { 
+            border: 1px solid #cbd5e1; 
+            position: relative; 
+            display: flex; 
+            flex-direction: column; 
+            background-color: #fff; 
+            overflow: hidden;
+            transition: background-color 0.2s;
         }
+        
+        /* Highlight hover for interaction */
+        .cell:active { filter: brightness(0.95); }
 
-        .overlay {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: rgba(255, 255, 255, 0.7);
-            font-family: 'Courier New', Courier, monospace;
-            font-weight: bold;
-            font-size: 14px;
-            text-shadow: 2px 2px 0 #000;
+        /* Mortgaged State */
+        .cell.mortgaged::after {
+            content: 'จำนอง';
+            position: absolute; inset: 0;
+            background: rgba(50, 50, 50, 0.7); color: #fff;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold; font-size: 0.9em; 
+            backdrop-filter: blur(1px);
             z-index: 10;
+        }
+
+        .cell-content { 
+            flex-grow: 1; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; 
+            padding: 2px; z-index: 1; line-height: 1;
+            text-align: center;
+        }
+        
+        .prop-name { 
+            font-weight: 600; 
+            font-size: 0.85em; /* Slightly smaller to fit */
+            margin-bottom: 2px;
+            width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis; 
+            padding: 0 2px;
+        }
+        
+        .prop-price { font-size: 0.7em; color: #64748b; font-weight: 400; }
+        .prop-icon { font-size: 1.4em; color: #94a3b8; margin-bottom: 2px; }
+
+        .color-bar { position: absolute; border: 1px solid rgba(0,0,0,0.1); display: flex; justify-content: center; align-items: center; gap: 1px; }
+        
+        /* Orientation Logic - Improved for readability */
+        .cell-bottom .color-bar { top: 0; left: 0; width: 100%; height: 22%; flex-direction: row; }
+        .cell-bottom .cell-content { margin-top: 22%; }
+
+        .cell-top .color-bar { bottom: 0; left: 0; width: 100%; height: 22%; flex-direction: row; }
+        .cell-top .cell-content { margin-bottom: 22%; transform: rotate(180deg); }
+
+        .cell-left .color-bar { top: 0; right: 0; width: 22%; height: 100%; flex-direction: column; }
+        .cell-left .cell-content { margin-right: 22%; transform: rotate(90deg); }
+
+        .cell-right .color-bar { top: 0; left: 0; width: 22%; height: 100%; flex-direction: column; }
+        .cell-right .cell-content { margin-left: 22%; transform: rotate(-90deg); }
+
+        .corner { background-color: #f1f5f9; z-index: 2; font-size: 1.1em; justify-content: center; align-items: center; text-align: center; font-weight: bold; color: #334155; }
+
+        /* Buildings - Cleaner Look */
+        .house { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2); border: 1px solid white; margin: 1px; }
+        .hotel { width: 10px; height: 10px; background-color: #ef4444; transform: rotate(45deg); box-shadow: 0 1px 2px rgba(0,0,0,0.2); border: 1px solid white; }
+        
+        /* Center Panel - Dashboard Style */
+        .center-panel { 
+            grid-column: 2 / 11; grid-row: 2 / 11; 
+            background-color: #f8fafc; 
+            display: flex; flex-direction: column; 
+            padding: 10px; position: relative; 
+            border: 1px solid #cbd5e1;
+        }
+
+        .player-card {
+            background: white; border-radius: 12px; padding: 8px 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;
+            display: flex; flex-direction: column; justify-content: center;
+            border-left: 6px solid transparent; transition: all 0.2s; cursor: pointer;
+        }
+        .player-card:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+        .active-turn { transform: scale(1.02); box-shadow: 0 8px 20px rgba(0,0,0,0.1); border-color: #f59e0b !important; z-index: 10; }
+        .p1-card { border-left-color: #ef4444; }
+        .p2-card { border-left-color: #3b82f6; }
+
+        #game-log { 
+            flex-grow: 1; background: #fff; 
+            border: 1px solid #e2e8f0; border-radius: 8px;
+            margin: 8px 0; padding: 8px; overflow-y: auto; font-size: 0.85em;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        /* Buttons */
+        .btn-main {
+            width: 100%; padding: 10px; font-size: 1em; font-weight: 600;
+            border-radius: 8px; color: white; box-shadow: 0 4px 0 rgba(0,0,0,0.1); margin-bottom: 4px;
+            transition: all 0.1s;
+        }
+        .btn-main:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.1); }
+        .btn-roll { background: linear-gradient(to bottom, #10b981, #059669); font-size: 1.1em; padding: 12px; }
+        .btn-buy { background: linear-gradient(to bottom, #3b82f6, #2563eb); }
+        .btn-build { background: linear-gradient(to bottom, #f59e0b, #d97706); }
+        .btn-pass { background: linear-gradient(to bottom, #ef4444, #dc2626); }
+        
+        /* Tokens - Glassmorphism */
+        .token { 
+            width: 28%; height: 28%; border-radius: 50%; border: 2px solid rgba(255,255,255,0.8); 
+            position: absolute; z-index: 20; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .token.p1 { background: radial-gradient(circle at 30% 30%, #fca5a5, #dc2626); top: 15%; left: 15%; }
+        .token.p2 { background: radial-gradient(circle at 30% 30%, #93c5fd, #2563eb); top: 25%; right: 15%; }
+
+        .owner-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            position: absolute; top: 4px; right: 4px;
+            border: 1px solid rgba(255,255,255,0.8); z-index: 5;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        /* Modals */
+        #modal-overlay, #auction-overlay, #manage-overlay {
+            position: fixed; inset: 0;
+            background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px);
+            display: none; justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal-box {
+            background: white; width: 85%; max-width: 320px;
+            padding: 24px; border-radius: 16px; text-align: center;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            max-height: 80vh; overflow-y: auto;
+            animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes modalPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        /* Manage List */
+        .manage-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 0.9em;
+        }
+        .manage-item:last-child { border-bottom: none; }
+        
+        .bid-display { font-size: 2.5em; font-weight: 800; color: #059669; margin: 10px 0; font-family: monospace; }
+        
+        /* Small screens */
+        @media (max-width: 450px) {
+            .prop-name { font-size: 0.75em; }
+            .prop-icon { display: none; } /* Hide icon to save space for text */
+            .corner { font-size: 0.9em; }
         }
     </style>
 </head>
 <body>
 
-<div id="player-container">
-    <canvas id="pixelCanvas"></canvas>
-    <div class="overlay">LIVE 🔴 NORTH POLE BROADCAST</div>
+<div class="board" id="board">
+    <div class="center-panel">
+        <div class="flex justify-between items-center mb-2 border-b border-gray-200 pb-2">
+            <div class="font-bold text-slate-700 text-lg flex items-center gap-2">
+                <i class="fas fa-city text-green-600"></i> Super Rich
+            </div>
+            <div class="text-xs font-mono bg-slate-200 px-2 py-1 rounded text-slate-600">Round: <span id="turn-count" class="font-bold">1</span></div>
+        </div>
+
+        <!-- Players -->
+        <div class="grid grid-cols-2 gap-3 mb-2">
+            <div id="p1-card" class="player-card p1-card" onclick="openManageModal(0)">
+                <div class="flex justify-between items-center text-xs font-bold text-red-600 uppercase tracking-wider mb-1">
+                    <span>คุณ (P1)</span> <i class="fas fa-user-circle"></i>
+                </div>
+                <div class="text-xl font-bold text-slate-800">฿<span id="p1-money">1500</span></div>
+                <div class="text-[0.6rem] text-slate-400 text-center mt-1"><i class="fas fa-cog"></i> จัดการ</div>
+            </div>
+            <div id="p2-card" class="player-card p2-card">
+                <div class="flex justify-between items-center text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">
+                    <span>บอท (CPU)</span> <i class="fas fa-robot"></i>
+                </div>
+                <div class="text-xl font-bold text-slate-800">฿<span id="p2-money">1500</span></div>
+            </div>
+        </div>
+
+        <div id="game-log"></div>
+        <div id="status-msg" class="h-6 text-center text-sm font-bold text-indigo-600 my-1 truncate flex items-center justify-center"></div>
+
+        <div class="mt-auto">
+            <!-- Dice -->
+            <div class="flex gap-4 justify-center mb-3">
+                <div class="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-3xl shadow-sm border border-slate-200 text-slate-700" id="die1"><i class="fas fa-dice-one"></i></div>
+                <div class="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-3xl shadow-sm border border-slate-200 text-slate-700" id="die2"><i class="fas fa-dice-one"></i></div>
+            </div>
+
+            <!-- Controls -->
+            <div id="controls-roll">
+                <button id="btn-roll" class="btn-main btn-roll shadow-green-200"><i class="fas fa-dice"></i> ทอยเต๋า</button>
+            </div>
+
+            <div id="controls-action" class="flex gap-2 hidden">
+                <button id="btn-buy" class="btn-main btn-buy w-1/2 text-sm leading-tight shadow-blue-200">ซื้อ<br><span class="text-xs opacity-80">฿<span id="buy-price">0</span></span></button>
+                <button id="btn-pass" class="btn-main btn-pass w-1/2 shadow-red-200">ประมูล</button>
+            </div>
+
+            <div id="controls-build" class="flex gap-2 hidden">
+                <button id="btn-build" class="btn-main btn-build w-1/2 text-sm leading-tight shadow-orange-200">สร้าง<br><span class="text-xs opacity-80">฿<span id="build-price">0</span></span></button>
+                <button id="btn-pass-build" class="btn-main btn-pass w-1/2 shadow-red-200">ข้าม</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay">
+    <div class="modal-box">
+        <div id="modal-icon" class="text-5xl mb-3 text-yellow-400 drop-shadow-sm"></div>
+        <h2 id="modal-title" class="text-xl font-bold mb-2 text-slate-800"></h2>
+        <p id="modal-desc" class="text-slate-500 mb-6 text-sm leading-relaxed"></p>
+        <div id="modal-btns">
+            <button id="btn-modal-ok" class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-xl w-full font-bold shadow-lg transition">ตกลง</button>
+            <button id="btn-modal-restart" class="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl w-full font-bold shadow-lg hidden" onclick="location.reload()">เริ่มเกมใหม่</button>
+        </div>
+    </div>
+</div>
+
+<!-- Auction Modal -->
+<div id="auction-overlay">
+    <div class="modal-box">
+        <div class="text-blue-600 text-3xl mb-2"><i class="fas fa-gavel"></i></div>
+        <h2 class="text-lg font-bold text-slate-800">การประมูล</h2>
+        <p class="text-slate-500 text-sm mb-4">ทรัพย์สิน: <span id="auction-prop-name" class="font-bold text-slate-700"></span></p>
+        
+        <div class="bid-display">฿<span id="auction-current-bid">0</span></div>
+        <p id="auction-status" class="text-xs font-bold text-orange-500 mb-6 h-4"></p>
+        
+        <div id="auction-controls" class="grid grid-cols-3 gap-2">
+            <button onclick="placeBid(10)" class="bg-green-50 text-green-700 border border-green-200 py-2 rounded-lg font-bold hover:bg-green-100">+10</button>
+            <button onclick="placeBid(50)" class="bg-green-50 text-green-700 border border-green-200 py-2 rounded-lg font-bold hover:bg-green-100">+50</button>
+            <button onclick="placeBid(100)" class="bg-green-50 text-green-700 border border-green-200 py-2 rounded-lg font-bold hover:bg-green-100">+100</button>
+            <button onclick="withdrawAuction()" class="col-span-3 bg-red-50 text-red-600 border border-red-200 py-2 rounded-lg font-bold hover:bg-red-100 mt-2">หมอบ</button>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Modal -->
+<div id="manage-overlay">
+    <div class="modal-box text-left p-0 overflow-hidden flex flex-col max-h-[85vh]">
+        <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <h2 class="text-lg font-bold text-slate-700">กระเป๋าทรัพย์สิน</h2>
+            <button onclick="closeManageModal()" class="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 transition"><i class="fas fa-times"></i></button>
+        </div>
+        
+        <div id="manage-list" class="flex-grow overflow-y-auto p-2 bg-white">
+            <!-- Items -->
+        </div>
+        
+        <div class="p-4 border-t border-slate-100 bg-slate-50 text-center">
+            <p class="text-xs text-slate-400 mb-1">เงินสดคงเหลือ</p>
+            <p class="text-xl font-bold text-slate-800">฿<span id="manage-money">0</span></p>
+        </div>
+    </div>
 </div>
 
 <script>
-    const canvas = document.getElementById('pixelCanvas');
-    const ctx = canvas.getContext('2d');
+    // --- Config ---
+    const BOARD_SIZE = 40;
+    const START_MONEY = 1500;
+    const MAX_HOUSES = 4; 
+    const RENT_MULT = [1, 5, 15, 35, 60];
 
-    // --- CONFIGURATION ---
-    const TARGET_GAME_HEIGHT = 180; // เพิ่มความละเอียดขึ้นเล็กน้อยเพื่อให้วาดรายละเอียดได้มากขึ้น
+    // Short Names for Better UI
+    const properties = [
+        { name: "เริ่มต้น", type: "go", price: 0, color: null, icon: "fa-flag" },
+        { name: "ตลาดพลู", type: "prop", price: 60, color: "#8d6e63", group: 0, baseRent: 2, buildCost: 50, icon: "fa-store" },
+        { name: "หีบสมบัติ", type: "chest", price: 0, color: null, icon: "fa-box-open" },
+        { name: "วงเวียน", type: "prop", price: 60, color: "#8d6e63", group: 0, baseRent: 4, buildCost: 50, icon: "fa-store" },
+        { name: "จ่ายภาษี", type: "tax", price: 200, color: null, icon: "fa-file-invoice-dollar" },
+        { name: "หัวลำโพง", type: "rail", price: 200, color: "#1e293b", group: 8, baseRent: 25, icon: "fa-train" },
+        { name: "คลองสาน", type: "prop", price: 100, color: "#38bdf8", group: 1, baseRent: 6, buildCost: 50, icon: "fa-building" },
+        { name: "เสี่ยงโชค", type: "chance", price: 0, color: null, icon: "fa-question" },
+        { name: "เจริญนคร", type: "prop", price: 100, color: "#38bdf8", group: 1, baseRent: 6, buildCost: 50, icon: "fa-building" },
+        { name: "ไอคอน", type: "prop", price: 120, color: "#38bdf8", group: 1, baseRent: 8, buildCost: 50, icon: "fa-gem" },
+        { name: "คุก", type: "jail", price: 0, color: null, icon: "fa-dungeon" },
+        { name: "สามย่าน", type: "prop", price: 140, color: "#ec4899", group: 2, baseRent: 10, buildCost: 100, icon: "fa-home" },
+        { name: "ไฟฟ้า", type: "util", price: 150, color: "#94a3b8", group: 9, baseRent: 0, icon: "fa-bolt" },
+        { name: "บางรัก", type: "prop", price: 140, color: "#ec4899", group: 2, baseRent: 10, buildCost: 100, icon: "fa-home" },
+        { name: "สีลม", type: "prop", price: 160, color: "#ec4899", group: 2, baseRent: 12, buildCost: 100, icon: "fa-city" },
+        { name: "บางซื่อ", type: "rail", price: 200, color: "#1e293b", group: 8, baseRent: 25, icon: "fa-train" },
+        { name: "ราชเทวี", type: "prop", price: 180, color: "#fbbf24", group: 3, baseRent: 14, buildCost: 100, icon: "fa-building" },
+        { name: "หีบสมบัติ", type: "chest", price: 0, color: null, icon: "fa-box-open" },
+        { name: "พญาไท", type: "prop", price: 180, color: "#fbbf24", group: 3, baseRent: 14, buildCost: 100, icon: "fa-building" },
+        { name: "อนุสาวรีย์", type: "prop", price: 200, color: "#fbbf24", group: 3, baseRent: 16, buildCost: 100, icon: "fa-monument" },
+        { name: "จอดฟรี", type: "parking", price: 0, color: null, icon: "fa-parking" },
+        { name: "วิภาวดี", type: "prop", price: 220, color: "#ef4444", group: 4, baseRent: 18, buildCost: 150, icon: "fa-road" },
+        { name: "เสี่ยงโชค", type: "chance", price: 0, color: null, icon: "fa-question" },
+        { name: "ลาดพร้าว", type: "prop", price: 220, color: "#ef4444", group: 4, baseRent: 18, buildCost: 150, icon: "fa-road" },
+        { name: "รัชดา", type: "prop", price: 240, color: "#ef4444", group: 4, baseRent: 20, buildCost: 150, icon: "fa-road" },
+        { name: "มักกะสัน", type: "rail", price: 200, color: "#1e293b", group: 8, baseRent: 25, icon: "fa-train" },
+        { name: "อโศก", type: "prop", price: 260, color: "#facc15", group: 5, baseRent: 22, buildCost: 150, icon: "fa-building" },
+        { name: "เอกมัย", type: "prop", price: 260, color: "#facc15", group: 5, baseRent: 22, buildCost: 150, icon: "fa-building" },
+        { name: "ประปา", type: "util", price: 150, color: "#94a3b8", group: 9, baseRent: 0, icon: "fa-tint" },
+        { name: "ทองหล่อ", type: "prop", price: 280, color: "#facc15", group: 5, baseRent: 24, buildCost: 150, icon: "fa-glass-cheers" },
+        { name: "เข้าคุก", type: "gotojail", price: 0, color: null, icon: "fa-gavel" },
+        { name: "ชิดลม", type: "prop", price: 300, color: "#22c55e", group: 6, baseRent: 26, buildCost: 200, icon: "fa-shopping-bag" },
+        { name: "เพลินจิต", type: "prop", price: 300, color: "#22c55e", group: 6, baseRent: 26, buildCost: 200, icon: "fa-shopping-bag" },
+        { name: "หีบสมบัติ", type: "chest", price: 0, color: null, icon: "fa-box-open" },
+        { name: "สุขุมวิท", type: "prop", price: 320, color: "#22c55e", group: 6, baseRent: 28, buildCost: 200, icon: "fa-city" },
+        { name: "สยาม", type: "rail", price: 200, color: "#1e293b", group: 8, baseRent: 25, icon: "fa-train" },
+        { name: "เสี่ยงโชค", type: "chance", price: 0, color: null, icon: "fa-question" },
+        { name: "สาทร", type: "prop", price: 350, color: "#3b82f6", group: 7, baseRent: 35, buildCost: 200, icon: "fa-building" },
+        { name: "จ่ายภาษี", type: "tax", price: 100, color: null, icon: "fa-coins" },
+        { name: "พารากอน", type: "prop", price: 400, color: "#3b82f6", group: 7, baseRent: 50, buildCost: 200, icon: "fa-star" }
+    ];
 
-    let gameWidth = 0;
-    let gameHeight = 0;
-    let frameCount = 0;
-    const scrollSpeed = 1.0; 
+    let players = [
+        { id: 0, name: "คุณ", money: START_MONEY, pos: 0, color: "p1", jailed: false, jailTurns: 0 },
+        { id: 1, name: "บอท", money: START_MONEY, pos: 0, color: "p2", jailed: false, jailTurns: 0 }
+    ];
+    let turn = 0; 
+    let turnCount = 1;
+    let ownership = new Array(40).fill(null);
+    let buildings = new Array(40).fill(0);
+    let mortgaged = new Array(40).fill(false);
+    let isProcessing = false;
 
-    // Palette (Refined Colors)
-    const PALETTE = {
-        skyTop: '#0C0C1D',
-        skyBottom: '#202040',
-        moon: '#FFD700',
-        snow: '#E3F2FD',
-        ground: '#DDDDDD',
-        road: '#263238',
-        treeDark: '#1B5E20',
-        treeLight: '#2E7D32',
-        gold: '#FFC107',
-        santaRed: '#D32F2F',
-        sleigh: '#5D4037',
-        skin: '#FFCCBC'
+    // --- Core Logic & Helpers ---
+    const getGridPos = (index) => {
+        if (index === 0) return { r: 11, c: 11 };
+        if (index < 10) return { r: 11, c: 11 - index };
+        if (index === 10) return { r: 11, c: 1 };
+        if (index < 20) return { r: 11 - (index - 10), c: 1 };
+        if (index === 20) return { r: 1, c: 1 };
+        if (index < 30) return { r: 1, c: 1 + (index - 20) };
+        if (index === 30) return { r: 1, c: 11 };
+        return { r: 1 + (index - 30), c: 11 };
     };
 
-    // Game Objects
-    let stars = [];
-    let mountains = [];
-    let buildings = [];
-    let groundObjects = [];
-    let snowParticles = [];
-
-    // --- RESIZE LOGIC ---
-    function resize() {
-        const aspect = window.innerWidth / window.innerHeight;
-        gameHeight = TARGET_GAME_HEIGHT;
-        gameWidth = Math.ceil(gameHeight * aspect);
-        canvas.width = gameWidth;
-        canvas.height = gameHeight;
-        ctx.imageSmoothingEnabled = false;
-        initScene();
-    }
-    window.addEventListener('resize', resize);
-
-    // --- INITIALIZATION ---
-    function initScene() {
-        // Stars
-        stars = [];
-        for(let i=0; i<60; i++) {
-            stars.push({
-                x: Math.random() * gameWidth,
-                y: Math.random() * (gameHeight * 0.5),
-                size: Math.random() < 0.1 ? 2 : 1, // มีดาวใหญ่บ้าง
-                blinkSpeed: Math.random() * 0.1
-            });
-        }
-        
-        // Buildings (Background)
-        buildings = [];
-        let bx = 0;
-        while(bx < gameWidth + 50) {
-            const w = 15 + Math.random() * 20;
-            buildings.push({
-                x: bx,
-                w: w,
-                h: 20 + Math.random() * 30,
-                windows: Math.random() > 0.3
-            });
-            bx += w;
-        }
-
-        groundObjects = [];
+    function log(msg, colorClass = "text-slate-600") {
+        const logBox = document.getElementById('game-log');
+        const entry = document.createElement('div');
+        entry.className = `border-b border-slate-100 py-1 ${colorClass}`;
+        entry.innerHTML = msg;
+        logBox.appendChild(entry);
+        logBox.scrollTop = logBox.scrollHeight;
     }
 
-    // --- DRAWING HELPERS ---
-    function rect(x, y, w, h, color) {
-        ctx.fillStyle = color;
-        ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
-    }
+    function initBoard() {
+        const board = document.getElementById('board');
+        properties.forEach((prop, i) => {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.id = `cell-${i}`;
+            const pos = getGridPos(i);
+            cell.style.gridRow = pos.r;
+            cell.style.gridColumn = pos.c;
 
-    // --- DETAILED OBJECTS ---
+            if (pos.r === 11 && pos.c > 1 && pos.c < 11) cell.classList.add('cell-bottom');
+            else if (pos.c === 1 && pos.r > 1 && pos.r < 11) cell.classList.add('cell-left');
+            else if (pos.r === 1 && pos.c > 1 && pos.c < 11) cell.classList.add('cell-top');
+            else if (pos.c === 11 && pos.r > 1 && pos.r < 11) cell.classList.add('cell-right');
+            else cell.classList.add('corner');
 
-    function drawDetailedSanta(x, y) {
-        // Float effect
-        const bob = Math.sin(frameCount * 0.05) * 2;
-        y += bob;
-
-        // 1. กวางเรนเดียร์ (4 ตัว - 2 คู่)
-        // คู่หน้า
-        drawReindeer(x + 65, y + 2, 0); 
-        drawReindeer(x + 80, y + 5, 5);
-        // คู่หลัง (สีเข้มกว่านิดหน่อยเพื่อมิติ)
-        drawReindeer(x + 45, y + 2, 10);
-        drawReindeer(x + 60, y + 5, 15);
-
-        // 2. เชือกบังเหียน
-        ctx.strokeStyle = '#3E2723';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x + 20, y + 5); // มือซานต้า
-        ctx.lineTo(x + 80, y + 5); // ถึงกวางตัวหน้า
-        ctx.stroke();
-
-        // 3. รถเลื่อน (Sleigh) - รายละเอียดสูงขึ้น
-        // ขาเลื่อน (Runner)
-        ctx.strokeStyle = PALETTE.gold;
-        ctx.beginPath();
-        ctx.moveTo(x - 5, y + 14);
-        ctx.bezierCurveTo(x + 5, y + 18, x + 25, y + 18, x + 35, y + 10);
-        ctx.stroke();
-        
-        // ตัวรถ
-        rect(x, y + 8, 30, 6, PALETTE.sleigh); // ฐาน
-        rect(x - 2, y + 6, 5, 8, PALETTE.sleigh); // พนักพิง
-        rect(x + 25, y + 6, 5, 4, PALETTE.sleigh); // หน้ารถโค้ง
-        
-        // 4. ถุงของขวัญ (Bag)
-        rect(x + 2, y + 2, 8, 8, '#795548'); // ถุง
-        rect(x + 3, y + 3, 2, 2, '#EF5350'); // กล่องของขวัญโผล่มา
-        rect(x + 6, y + 2, 3, 3, '#42A5F5'); // กล่องอีกใบ
-
-        // 5. ซานต้า (Santa)
-        rect(x + 10, y + 2, 10, 8, PALETTE.santaRed); // ตัว
-        rect(x + 13, y - 2, 5, 5, PALETTE.skin); // หน้า
-        rect(x + 12, y + 1, 7, 3, '#FFF'); // เครา
-        rect(x + 12, y - 4, 7, 3, PALETTE.santaRed); // หมวก
-        rect(x + 18, y - 3, 2, 2, '#FFF'); // ปอมปอม
-        rect(x + 18, y + 4, 3, 2, '#333'); // ถุงมือจับเชือก
-    }
-
-    function drawReindeer(x, y, frameOffset) {
-        // ขาขยับ
-        const legSwing = Math.sin((frameCount + frameOffset) * 0.2) * 3;
-        
-        // ขาหลัง
-        rect(x + 2, y + 6 + legSwing, 2, 5, '#5D4037');
-        rect(x + 10, y + 6 - legSwing, 2, 5, '#5D4037');
-        
-        // ตัว
-        rect(x, y, 12, 7, '#795548');
-        rect(x - 1, y - 1, 2, 2, '#FFF'); // หาง
-        
-        // คอและหัว
-        rect(x + 10, y - 3, 4, 6, '#795548'); // คอ
-        rect(x + 11, y - 6, 5, 4, '#795548'); // หัว
-        rect(x + 15, y - 4, 1, 1, '#3E2723'); // จมูก
-        rect(x + 12, y - 9, 4, 3, '#D7CCC8'); // เขา
-        
-        // ปลอกคอกระดิ่ง
-        rect(x + 11, y, 2, 2, PALETTE.gold);
-    }
-
-    function drawFancyTree(obj) {
-        const x = obj.x;
-        const y = obj.y; // จุดฐาน
-        
-        // กระถาง
-        rect(x + 6, y - 4, 6, 4, '#3E2723');
-
-        // ใบไม้ (Layered)
-        const layers = 5;
-        const baseW = 22;
-        const layerH = 6;
-        
-        for (let i = 0; i < layers; i++) {
-            const w = baseW - (i * 4);
-            const lx = x + (baseW - w) / 2; // Center x
-            const ly = y - 4 - ((i + 1) * (layerH - 1)); // Overlap slightly
+            let colorHtml = prop.color ? `<div class="color-bar" id="bar-${i}" style="background-color:${prop.color}"></div>` : '';
+            let priceHtml = prop.price > 0 ? `<div class="prop-price">฿${prop.price}</div>` : '';
             
-            // เงาใบไม้
-            rect(lx + 1, ly + 1, w, layerH, PALETTE.treeDark);
-            // ส่วนใบไม้หลัก
-            rect(lx, ly, w - 1, layerH - 1, PALETTE.treeLight);
-            
-            // Texture (Leaf noise)
-            if (i % 2 === 0) rect(lx + 2, ly + 2, 2, 2, PALETTE.treeDark);
+            cell.innerHTML = `
+                ${colorHtml}
+                <div class="cell-content">
+                    <div class="prop-name">${prop.name}</div>
+                    ${priceHtml}
+                </div>
+            `;
+            board.appendChild(cell);
+        });
+        renderBoardState();
+        log("ยินดีต้อนรับ! เริ่มเกมเศรษฐี", "text-green-600 font-bold");
+    }
+
+    function renderBoardState() {
+        document.querySelectorAll('.token, .owner-dot, .house, .hotel').forEach(e => e.remove());
+
+        // Mortgage visual
+        properties.forEach((p, idx) => {
+            const cell = document.getElementById(`cell-${idx}`);
+            if(mortgaged[idx]) cell.classList.add('mortgaged');
+            else cell.classList.remove('mortgaged');
+        });
+
+        // Buildings
+        buildings.forEach((level, idx) => {
+            if (level > 0 && properties[idx].color) {
+                const bar = document.getElementById(`bar-${idx}`);
+                if (bar) {
+                    bar.innerHTML = '';
+                    if (level === 4) bar.innerHTML = '<div class="hotel"></div>';
+                    else for(let i=0; i<level; i++) bar.innerHTML += '<div class="house"></div>';
+                }
+            }
+        });
+
+        // Tokens
+        players.forEach(p => {
+            const token = document.createElement('div');
+            token.className = `token ${p.color}`;
+            document.getElementById(`cell-${p.pos}`).appendChild(token);
+        });
+
+        // Ownership
+        ownership.forEach((ownerId, idx) => {
+            if (ownerId !== null) {
+                const dot = document.createElement('div');
+                dot.className = 'owner-dot';
+                dot.style.background = players[ownerId].color === 'p1' ? '#ef4444' : '#3b82f6';
+                document.getElementById(`cell-${idx}`).appendChild(dot);
+            }
+        });
+        
+        updateUI();
+    }
+
+    // --- Logic ---
+    async function rollDice() {
+        if (isProcessing) return;
+        isProcessing = true;
+        
+        document.getElementById('btn-roll').classList.add('hidden');
+        document.getElementById('status-msg').innerText = "กำลังทอยเต๋า...";
+
+        const die1 = document.getElementById('die1');
+        const die2 = document.getElementById('die2');
+        for(let i=0; i<8; i++) {
+            die1.innerHTML = `<i class="fas fa-dice-${['one','two','six'][Math.floor(Math.random()*3)]}"></i>`;
+            die2.innerHTML = `<i class="fas fa-dice-${['three','four','five'][Math.floor(Math.random()*3)]}"></i>`;
+            await new Promise(r=>setTimeout(r, 60));
         }
 
-        // ดาวบนยอด (ปรับตำแหน่งใหม่ให้กลางเป๊ะ)
-        const topY = y - 4 - (layers * (layerH - 1));
-        // baseW คือ 22, กึ่งกลางคือ 11
-        // ส่วนแนวตั้งกว้าง 2 -> x = 11 - 1 = 10
-        rect(x + 10, topY - 3, 2, 4, PALETTE.gold);
-        // ส่วนแนวนอนกว้าง 4 -> x = 11 - 2 = 9
-        rect(x + 9, topY - 2, 4, 2, PALETTE.gold);
+        const d1 = Math.floor(Math.random()*6)+1;
+        const d2 = Math.floor(Math.random()*6)+1;
+        die1.innerHTML = `<i class="fas fa-dice-${['one','two','three','four','five','six'][d1-1]}"></i>`;
+        die2.innerHTML = `<i class="fas fa-dice-${['one','two','three','four','five','six'][d2-1]}"></i>`;
 
-        // ไฟประดับ (Ornaments)
-        // คำนวณตำแหน่งไฟแบบสุ่มแต่คงที่ (Deterministic random based on x)
-        // หรือใช้ frameCount ให้กระพริบ
-        const blink = Math.floor(frameCount / 10) % 2 === 0;
-        if (blink) {
-            rect(x + 5, y - 10, 2, 2, '#F44336'); // แดง
-            rect(x + 12, y - 20, 2, 2, '#2196F3'); // ฟ้า
-            rect(x + 8, y - 15, 2, 2, '#FFEB3B'); // เหลือง
+        const player = players[turn];
+        const total = d1+d2;
+        const pColor = turn === 0 ? "text-red-600 font-bold" : "text-blue-600 font-bold";
+        log(`${player.name} ทอยได้ ${total}`, pColor);
+
+        if(player.jailed) {
+            if(d1===d2) {
+                log("ออกคุกได้สำเร็จ!", "text-green-500");
+                player.jailed=false; player.jailTurns=0;
+                await movePlayer(player, total);
+            } else {
+                player.jailTurns++;
+                log(`ยังติดคุก (${player.jailTurns}/3)`, "text-slate-400");
+                if(player.jailTurns>=3) {
+                    player.money -= 50;
+                    player.jailed=false; player.jailTurns=0;
+                    updateUI();
+                    await movePlayer(player, total);
+                } else {
+                    endTurn();
+                }
+            }
         } else {
-            rect(x + 10, y - 8, 2, 2, '#FFEB3B');
-            rect(x + 6, y - 22, 2, 2, '#F44336');
+            await movePlayer(player, total);
         }
     }
 
-    function drawDetailedHuman(obj) {
-        const x = obj.x;
-        const y = obj.y;
-        
-        // ขาเดิน
-        const stride = Math.sin(frameCount * 0.15) * 3;
-        rect(x, y - 8, 2, 8 + stride, '#263238'); // ขา 1
-        rect(x + 4, y - 8, 2, 8 - stride, '#263238'); // ขา 2
-        
-        // ตัวเสื้อ
-        rect(x - 1, y - 18, 8, 10, obj.color);
-        // ผ้าพันคอ
-        rect(x - 1, y - 18, 8, 2, '#FFF');
-        rect(x + 4, y - 18, 2, 5 + Math.sin(frameCount * 0.2), '#FFF'); // ชายผ้าพันคอปลิว
-
-        // หัว
-        rect(x, y - 23, 6, 5, PALETTE.skin);
-        // หมวกไหมพรม
-        rect(x - 1, y - 25, 8, 3, obj.color);
-        rect(x + 2, y - 26, 2, 1, '#FFF');
-    }
-
-    // --- LOGIC ---
-    function spawnObjects() {
-        if (Math.random() < 0.015) { // เกิดไม่บ่อยมาก เพื่อไม่ให้รก
-            const choice = Math.random();
-            let type = 'TREE';
-            if (choice > 0.6) type = 'HUMAN';
-            else if (choice > 0.4) type = 'LAMP';
-
-            // ตรวจสอบระยะห่าง
-            const lastObj = groundObjects[groundObjects.length - 1];
-            if (!lastObj || (gameWidth + 20) - lastObj.x > 40) {
-                groundObjects.push({
-                    type: type,
-                    x: gameWidth + 20,
-                    y: gameHeight - 20, // จุดยืน
-                    color: PALETTE.santaRed // default for human
-                });
+    async function movePlayer(player, steps) {
+        for(let i=0; i<steps; i++) {
+            player.pos = (player.pos+1)%BOARD_SIZE;
+            if(player.pos===0) {
+                player.money+=200; 
+                log("ผ่านจุดเริ่มต้น +200", "text-green-600");
+                updateUI();
             }
+            renderBoardState();
+            await new Promise(r=>setTimeout(r, 120));
+        }
+        handleLand(player);
+    }
+
+    function handleLand(player) {
+        const cell = properties[player.pos];
+        const pColor = turn===0 ? "text-red-600" : "text-blue-600";
+
+        if (cell.type === 'prop' || cell.type === 'rail' || cell.type === 'util') {
+            const owner = ownership[player.pos];
+            
+            if (owner === null) {
+                if (player.money >= cell.price) {
+                    if (turn === 0) {
+                        document.getElementById('buy-price').innerText = cell.price;
+                        document.getElementById('controls-action').classList.remove('hidden');
+                        document.getElementById('status-msg').innerText = "ซื้อ หรือ ประมูล?";
+                    } else {
+                        botDecideBuy(player, cell);
+                    }
+                } else {
+                    log("เงินไม่พอซื้อ -> ประมูล", pColor);
+                    startAuction(player.pos);
+                }
+            } else if (owner === player.id) {
+                const hasMonopoly = checkMonopoly(player.id, cell.group);
+                if (cell.type === 'prop' && hasMonopoly && buildings[player.pos] < MAX_HOUSES && player.money >= cell.buildCost && !mortgaged[player.pos]) {
+                    if (turn === 0) {
+                        document.getElementById('build-price').innerText = cell.buildCost;
+                        document.getElementById('controls-build').classList.remove('hidden');
+                        document.getElementById('status-msg').innerText = "สร้างบ้านเพิ่มไหม?";
+                    } else {
+                        botDecideBuild(player, cell);
+                    }
+                } else {
+                    log("พักผ่อนที่บ้านตัวเอง", "text-slate-400");
+                    endTurn();
+                }
+            } else {
+                if (mortgaged[player.pos]) {
+                    log("ที่ดินติดจำนอง (ฟรีค่าเช่า)", "text-slate-400");
+                    endTurn();
+                } else {
+                    let rent = calculateRent(cell, player.pos);
+                    log(`จ่ายค่าเช่า ${rent}`, pColor);
+                    player.money -= rent;
+                    players[owner].money += rent;
+                    updateUI();
+                    if(checkBankrupt(player)) return;
+                    endTurn();
+                }
+            }
+        } else if (cell.type === 'tax') {
+            player.money -= cell.price;
+            log(`จ่ายภาษี ${cell.price}`, "text-orange-600");
+            updateUI();
+            if(checkBankrupt(player)) return;
+            endTurn();
+        } else if (cell.type === 'chance' || cell.type === 'chest') {
+            handleChance(player);
+        } else if (cell.type === 'gotojail') {
+            log("เข้าคุก!", "text-red-600 font-bold");
+            player.pos=10; player.jailed=true;
+            renderBoardState();
+            endTurn();
+        } else {
+            endTurn();
         }
     }
 
-    function update() {
-        frameCount++;
+    function calculateRent(cell, idx) {
+        if (cell.type === 'rail') {
+            const owner = ownership[idx];
+            const rails = properties.filter((p,i)=>p.type==='rail' && ownership[i]===owner && !mortgaged[i]).length;
+            return 25 * Math.pow(2, rails-1);
+        }
+        if (cell.type === 'util') return 50; 
+        const level = buildings[idx];
+        const owner = ownership[idx];
+        if (level === 0 && checkMonopoly(owner, cell.group)) return cell.baseRent * 2;
+        return cell.baseRent * RENT_MULT[level];
+    }
 
-        // Snowflakes
-        if (snowParticles.length < 100) {
-            snowParticles.push({
-                x: Math.random() * gameWidth,
-                y: -5,
-                speed: 0.5 + Math.random(),
-                wobble: Math.random() * Math.PI
+    function checkMonopoly(playerId, group) {
+        if (group === undefined) return false;
+        const groupProps = properties.map((p, i) => ({...p, idx: i})).filter(p => p.group === group);
+        return groupProps.every(p => ownership[p.idx] === playerId);
+    }
+
+    // --- Actions ---
+    function buyProp() {
+        const p = players[turn];
+        const cell = properties[p.pos];
+        p.money -= cell.price;
+        ownership[p.pos] = p.id;
+        log(`${p.name} ซื้อ ${cell.name}`, turn===0?"text-red-600":"text-blue-600");
+        document.getElementById('controls-action').classList.add('hidden');
+        renderBoardState();
+        endTurn();
+    }
+
+    function passBuy() {
+        document.getElementById('controls-action').classList.add('hidden');
+        log("ผ่าน -> เริ่มประมูล", "text-orange-500");
+        startAuction(players[turn].pos);
+    }
+
+    function buildHouse() {
+        const p = players[turn];
+        const cell = properties[p.pos];
+        p.money -= cell.buildCost;
+        buildings[p.pos]++;
+        log(`${p.name} อัพเกรดที่ดิน`, turn===0?"text-red-600":"text-blue-600");
+        document.getElementById('controls-build').classList.add('hidden');
+        renderBoardState();
+        endTurn();
+    }
+
+    // --- Auction ---
+    let auctionPropIdx = -1;
+    let currentBid = 0;
+
+    function startAuction(idx) {
+        auctionPropIdx = idx;
+        const prop = properties[idx];
+        currentBid = Math.floor(prop.price / 2);
+        
+        document.getElementById('auction-prop-name').innerText = prop.name;
+        document.getElementById('auction-current-bid').innerText = currentBid;
+        document.getElementById('auction-overlay').style.display = 'flex';
+        document.getElementById('auction-status').innerText = "เริ่มประมูล!";
+    }
+
+    function placeBid(amount) {
+        currentBid += amount;
+        document.getElementById('auction-current-bid').innerText = currentBid;
+        document.getElementById('auction-status').innerText = "คุณเสนอราคา...";
+        setTimeout(() => botAuctionTurn(), 1000);
+    }
+    
+    function botAuctionTurn() {
+        const prop = properties[auctionPropIdx];
+        const bot = players[1];
+        const limit = prop.price + 50; 
+        
+        if (bot.money > currentBid + 10 && currentBid < limit) {
+            currentBid += 10;
+            document.getElementById('auction-current-bid').innerText = currentBid;
+            document.getElementById('auction-status').innerText = "บอทสู้ราคา!";
+        } else {
+            document.getElementById('auction-status').innerText = "บอทยอมแพ้";
+            setTimeout(() => auctionEnd(0), 1000);
+        }
+    }
+
+    function withdrawAuction() {
+        document.getElementById('auction-status').innerText = "คุณหมอบ";
+        setTimeout(() => auctionEnd(1), 1000);
+    }
+
+    function auctionEnd(winnerId) {
+        const winner = players[winnerId];
+        if (winner.money >= currentBid) {
+            winner.money -= currentBid;
+            ownership[auctionPropIdx] = winnerId;
+            log(`${winner.name} ชนะประมูล`, winnerId===0?"text-red-600":"text-blue-600");
+            document.getElementById('auction-overlay').style.display = 'none';
+            renderBoardState();
+            endTurn();
+        } else {
+            document.getElementById('auction-overlay').style.display = 'none';
+            log("จบประมูล (เงินไม่พอ)", "text-slate-400");
+            endTurn();
+        }
+    }
+
+    // --- Mortgage ---
+    function openManageModal(pid) {
+        if (turn !== 0 && pid === 0) return;
+        const list = document.getElementById('manage-list');
+        list.innerHTML = '';
+        const p = players[pid];
+        let ownedCount = 0;
+        
+        properties.forEach((prop, i) => {
+            if (ownership[i] === pid) {
+                ownedCount++;
+                const isMort = mortgaged[i];
+                const color = prop.color || '#cbd5e1';
+                const div = document.createElement('div');
+                div.className = `manage-item ${isMort ? 'bg-slate-100 opacity-60' : ''}`;
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded-full border border-slate-300" style="background:${color}"></div>
+                        <span class="font-semibold text-slate-700">${prop.name}</span>
+                    </div>
+                    <button class="text-xs px-3 py-1 rounded-full font-bold transition ${isMort ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-50 text-red-600 hover:bg-red-100'}" onclick="toggleMortgage(${i})">
+                        ${isMort ? `ไถ่ ฿${Math.floor(prop.price/2 * 1.1)}` : `จำนอง +฿${Math.floor(prop.price/2)}`}
+                    </button>
+                `;
+                list.appendChild(div);
+            }
+        });
+
+        if (ownedCount === 0) list.innerHTML = '<div class="text-center p-8 text-slate-400"><i class="fas fa-folder-open text-2xl mb-2"></i><br>ไม่มีทรัพย์สิน</div>';
+        document.getElementById('manage-money').innerText = p.money;
+        document.getElementById('manage-overlay').style.display = 'flex';
+    }
+
+    function closeManageModal() {
+        document.getElementById('manage-overlay').style.display = 'none';
+        renderBoardState();
+    }
+
+    window.toggleMortgage = function(idx) {
+        const p = players[0];
+        const prop = properties[idx];
+        const mortgageValue = Math.floor(prop.price / 2);
+        const unmortgageCost = Math.floor(mortgageValue * 1.1);
+
+        if (mortgaged[idx]) {
+            if (p.money >= unmortgageCost) {
+                p.money -= unmortgageCost;
+                mortgaged[idx] = false;
+                log(`ไถ่ถอน ${prop.name}`, "text-green-600");
+            } else {
+                alert("เงินไม่พอ!"); return;
+            }
+        } else {
+            if (buildings[idx] > 0) { alert("ขายบ้านก่อน!"); return; }
+            p.money += mortgageValue;
+            mortgaged[idx] = true;
+            log(`จำนอง ${prop.name}`, "text-red-500");
+        }
+        openManageModal(0); updateUI();
+    };
+
+    // --- Bot Logic ---
+    function botDecideBuy(player, cell) {
+        document.getElementById('status-msg').innerText = "บอทกำลังคิด...";
+        setTimeout(() => {
+            if(player.money > cell.price + 100) buyProp();
+            else { 
+                log("บอทผ่าน", "text-blue-600"); 
+                document.getElementById('controls-action').classList.add('hidden');
+                startAuction(player.pos); 
+            }
+        }, 800);
+    }
+
+    function botDecideBuild(player, cell) {
+        document.getElementById('status-msg').innerText = "บอทกำลังคิด...";
+        setTimeout(() => {
+            if(player.money > cell.buildCost + 300) buildHouse();
+            else { log("บอทงบไม่พอสร้าง", "text-blue-600"); endTurn(); }
+        }, 800);
+    }
+
+    // --- Chance & Bankrupt ---
+    function handleChance(player) {
+        const cards = [
+            {t:"ถูกหวย", d:"รับ ฿500", f:p=>p.money+=500, icon:"fa-money-bill-wave"},
+            {t:"ป่วย", d:"จ่าย ฿100", f:p=>p.money-=100, icon:"fa-briefcase-medical"},
+            {t:"วาร์ป", d:"กลับจุดเริ่มต้น", f:p=>{p.pos=0; p.money+=200; renderBoardState();}, icon:"fa-rocket"},
+            {t:"ซวย", d:"เข้าคุกทันที", f:p=>{p.pos=10; p.jailed=true; renderBoardState();}, icon:"fa-ban"}
+        ];
+        const c = cards[Math.floor(Math.random()*cards.length)];
+        
+        document.getElementById('modal-icon').innerHTML = `<i class="fas ${c.icon}"></i>`;
+        
+        if (turn === 1) {
+            showModal(c.t, c.d, false);
+            setTimeout(() => {
+                document.getElementById('modal-overlay').style.display = 'none';
+                c.f(player); updateUI();
+                if(checkBankrupt(player)) return;
+                endTurn();
+            }, 2500);
+        } else {
+            showModal(c.t, c.d, true, "ตกลง", () => {
+                c.f(player); updateUI();
+                if(checkBankrupt(player)) return;
+                endTurn();
             });
         }
-        snowParticles.forEach(p => {
-            p.y += p.speed;
-            p.x -= scrollSpeed * 0.2 + Math.sin(p.wobble + frameCount * 0.05) * 0.5;
-            if (p.y > gameHeight) {
-                p.y = -5;
-                p.x = Math.random() * gameWidth;
-            }
-        });
-
-        // Parallax Buildings
-        buildings.forEach(b => {
-            b.x -= scrollSpeed * 0.25; // ช้ากว่าฉากหน้า
-            if (b.x + b.w < 0) b.x = gameWidth + Math.random() * 50;
-        });
-
-        spawnObjects();
-
-        // Move Ground Objects
-        for (let i = groundObjects.length - 1; i >= 0; i--) {
-            groundObjects[i].x -= scrollSpeed;
-            if (groundObjects[i].x < -30) groundObjects.splice(i, 1);
-        }
     }
 
-    function draw() {
-        // 1. Sky Gradient
-        const grad = ctx.createLinearGradient(0, 0, 0, gameHeight);
-        grad.addColorStop(0, PALETTE.skyTop);
-        grad.addColorStop(1, PALETTE.skyBottom);
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, gameWidth, gameHeight);
+    function checkBankrupt(p) {
+        if(p.money < 0) {
+            showModal("จบเกม!", `${p.name} ล้มละลาย!`, false);
+            document.getElementById('btn-modal-ok').classList.add('hidden');
+            document.getElementById('btn-modal-restart').classList.remove('hidden');
+            document.getElementById('modal-overlay').style.display = 'flex';
+            document.getElementById('controls-roll').innerHTML = '';
+            document.getElementById('controls-action').innerHTML = '';
+            document.getElementById('controls-build').innerHTML = '';
+            return true;
+        }
+        return false;
+    }
 
-        // 2. Stars
-        ctx.fillStyle = '#FFF';
-        stars.forEach(s => {
-            if (Math.sin(frameCount * s.blinkSpeed) > 0) {
-                ctx.fillRect(s.x, s.y, s.size, s.size);
-            }
-        });
-
-        // 3. Moon (Glowy Pixel)
-        const mx = gameWidth - 50, my = 30;
-        ctx.fillStyle = 'rgba(255, 215, 0, 0.2)'; // Glow
-        ctx.fillRect(mx - 2, my - 2, 14, 14);
-        rect(mx, my, 10, 10, PALETTE.moon);
-
-        // 4. City Background (Silhouette)
-        ctx.fillStyle = '#101025'; // สีตึกเข้มๆ
-        buildings.forEach(b => {
-            rect(b.x, gameHeight - 30 - b.h, b.w, b.h + 30, '#101025');
-            // หน้าต่างไฟ
-            if (b.windows) {
-                ctx.fillStyle = '#263238'; // ไฟมืดๆ
-                if (Math.random() > 0.95) ctx.fillStyle = '#FFC107'; // ไฟติดบ้างดับบ้าง
-                rect(b.x + 2, gameHeight - 30 - b.h + 4, 2, 2, ctx.fillStyle);
-                rect(b.x + 6, gameHeight - 30 - b.h + 10, 2, 2, ctx.fillStyle);
-            }
-        });
-
-        // 5. Road & Ground
-        const groundY = gameHeight - 20;
-        rect(0, groundY, gameWidth, 20, PALETTE.road); // ถนน
-        rect(0, groundY, gameWidth, 2, '#CFD8DC'); // ขอบฟุตบาท
+    function endTurn() {
+        document.getElementById('controls-action').classList.add('hidden');
+        document.getElementById('controls-build').classList.add('hidden');
+        document.getElementById('status-msg').innerText = "";
         
-        // รั้วไกล (Fence)
-        const fenceSpacing = 10;
-        const fenceOffset = (frameCount * scrollSpeed) % fenceSpacing;
-        ctx.fillStyle = '#37474F';
-        for(let i = -1; i < gameWidth/fenceSpacing + 1; i++) {
-            rect((i * fenceSpacing) - fenceOffset, groundY - 6, 2, 6, '#37474F');
-            rect(0, groundY - 4, gameWidth, 1, '#37474F'); // ราวรั้ว
-        }
+        setTimeout(() => {
+            turn = (turn+1)%2;
+            document.getElementById('p1-card').classList.toggle('active-turn', turn===0);
+            document.getElementById('p2-card').classList.toggle('active-turn', turn===1);
+            
+            isProcessing = false;
 
-        // 6. Ground Objects (Sorted by Y is not needed as they are on same line, just draw)
-        groundObjects.forEach(obj => {
-            if (obj.type === 'TREE') drawFancyTree(obj);
-            else if (obj.type === 'HUMAN') drawDetailedHuman(obj);
-            else if (obj.type === 'LAMP') {
-                 // เสาไฟ
-                 rect(obj.x, obj.y - 35, 2, 35, '#212121');
-                 rect(obj.x - 2, obj.y - 38, 6, 4, '#000');
-                 rect(obj.x - 1, obj.y - 37, 4, 2, '#FFEB3B'); // หลอดไฟ
-                 // แสงฟุ้ง
-                 ctx.fillStyle = 'rgba(255, 235, 59, 0.2)';
-                 ctx.fillRect(obj.x - 10, obj.y - 45, 22, 22);
+            if(turn===0) {
+                turnCount++;
+                document.getElementById('turn-count').innerText = turnCount;
+                document.getElementById('btn-roll').classList.remove('hidden');
+                document.getElementById('status-msg').innerText = "ตาของคุณ";
+            } else {
+                document.getElementById('status-msg').innerText = "บอทเล่น...";
+                setTimeout(rollDice, 1000);
             }
-        });
-
-        // 7. Santa (Flying above)
-        // ตำแหน่ง X คงที่, Y ลอยอยู่เหนือตึก
-        drawDetailedSanta(40, 50);
-
-        // 8. Snow Foreground
-        ctx.fillStyle = '#FFF';
-        snowParticles.forEach(p => {
-            ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 1, 1);
-        });
+        }, 800);
     }
 
-    // Start
-    resize();
-    function loop() {
-        update();
-        draw();
-        requestAnimationFrame(loop);
+    function updateUI() {
+        document.getElementById('p1-money').innerText = players[0].money;
+        document.getElementById('p2-money').innerText = players[1].money;
     }
-    loop();
 
+    function showModal(title, desc, showOkBtn = true, okText = "ตกลง", onOk = null) {
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-desc').innerText = desc;
+        document.getElementById('btn-modal-restart').classList.add('hidden');
+        const okBtn = document.getElementById('btn-modal-ok');
+        if (showOkBtn) {
+            okBtn.classList.remove('hidden');
+            okBtn.innerText = okText;
+            okBtn.onclick = () => {
+                document.getElementById('modal-overlay').style.display = 'none';
+                if (onOk) onOk();
+            };
+        } else {
+            okBtn.classList.add('hidden');
+        }
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    document.getElementById('btn-roll').onclick = rollDice;
+    document.getElementById('btn-buy').onclick = buyProp;
+    document.getElementById('btn-pass').onclick = passBuy; 
+    document.getElementById('btn-build').onclick = buildHouse;
+    document.getElementById('btn-pass-build').onclick = () => { log("ไม่สร้าง", "text-slate-400"); endTurn(); };
+
+    initBoard();
+    document.getElementById('p1-card').classList.add('active-turn');
 </script>
-
 </body>
 </html>
